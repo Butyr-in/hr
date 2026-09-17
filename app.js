@@ -1339,13 +1339,13 @@ function updateDayList(selectedLimits = [], filteredHands = null) {
         return;
     }
 
-    let html = '<div class="day-list-header" id="dayListHeader" style="cursor: pointer;" title="Кликните для копирования">';
+    let html = '<div class="day-list-header" id="dayListHeader">';
     html += '<span>Дата</span>';
-    html += '<span>Лимит</span>';
-    html += '<span>Раздачи</span>';
-    html += '<span>Время</span>';
-    html += '<span>Блайнды</span>';  
-    html += '<span style="color:var(--text-muted); cursor:default !important; pointer-events:none;">Рейк</span>'; 
+    html += '<span title="Кликните для копирования Лимита, Раздач и Времени">Лимит</span>';
+    html += '<span title="Кликните для копирования Лимита, Раздач и Времени">Раздачи</span>';
+    html += '<span title="Кликните для копирования Лимита, Раздач и Времени">Время</span>';
+    html += '<span title="Кликните для копирования Блайндов (BB)">Блайнды</span>';  
+    html += '<span title="Кликните для копирования Рейка">Рейк</span>'; 
     html += '<span>Профит</span>';
     html += '</div>';
 
@@ -1553,8 +1553,8 @@ html += '</div>';
             });
         });
 
-        // ============================================================
-        // ОБРАБОТЧИК КЛИКА НА ЗАГОЛОВОК (копирование)
+                // ============================================================
+        // ОБРАБОТЧИК КЛИКА НА ЗАГОЛОВОК (копирование в Google Таблицы)
         // ============================================================
         header.addEventListener('click', function(e) {
     const target = e.target;
@@ -1566,12 +1566,13 @@ html += '</div>';
     const columnIndex = Array.from(header.children).indexOf(target);
     const columnText = target?.textContent?.trim() || '';
 
-    // ✅ Только нужные колонки
+    // ✅ Добавлен индекс 5 для колонки Рейк
     const isBBColumn = columnIndex === 4;
+    const isRakeColumn = columnIndex === 5;
     const isGroupColumn = [1, 2, 3].includes(columnIndex);
 
-    // ❌ Выходим, если кликнули по любой другой колонке
-    if (!isBBColumn && !isGroupColumn) {
+    // ❌ Выходим, если кликнули по любой другой некопируемой колонке
+    if (!isBBColumn && !isRakeColumn && !isGroupColumn) {
         return;
     }
 
@@ -1602,6 +1603,13 @@ html += '</div>';
                 const dayBB = dayData.totalBBs || 0;
                 const bbFormatted = (dayBB < 0 ? '-' : '') + Math.abs(dayBB).toString().replace('.', ',');
                 rows.push([bbFormatted]);
+            } else if (isRakeColumn) {
+                // ✅ Новая логика: Сбор и форматирование рейка для Google Таблиц
+                const dayHandsArray = dayData.hands || [];
+                const dayRawRake = dayData.totalRake !== undefined ? dayData.totalRake : dayHandsArray.reduce((sum, h) => sum + (h.heroRake || 0), 0);
+                const convertedDayRake = convertCurrency(dayRawRake);
+                const rakeFormatted = convertedDayRake.toFixed(2).replace('.', ',');
+                rows.push([rakeFormatted]);
             } else if (isGroupColumn) {
                 const avgLimit = (dayData.totalHands > 0 ? 
                     (dayData.hands.reduce((sum, h) => sum + h.limit, 0) / dayData.totalHands) : 0
@@ -1610,8 +1618,8 @@ html += '</div>';
                 rows.push([avgLimit, dayData.totalHands, timeMinutes]);
             }
         } else {
-            // Пустой день
-            if (isBBColumn) {
+            // Пустой день (заполняем структуру пустой строкой, чтобы не ломать даты в таблице)
+            if (isBBColumn || isRakeColumn) {
                 rows.push(['']);
             } else if (isGroupColumn) {
                 rows.push(['', '', '']);
@@ -1626,6 +1634,7 @@ html += '</div>';
     navigator.clipboard.writeText(tsv).then(function() {
         let message = '✅ Данные скопированы!';
         if (isBBColumn) message = '✅ BB в буфере обмена!';
+        else if (isRakeColumn) message = '✅ Рейк в буфере обмена!';
         else if (isGroupColumn) message = '✅ Лимит, Раздачи, Время в буфере обмена!';
         showNotification(message, 'success');
     }).catch(function() {
@@ -1637,10 +1646,12 @@ html += '</div>';
         document.body.removeChild(textarea);
         let message = '✅ Данные скопированы!';
         if (isBBColumn) message = '✅ BB в буфере обмена!';
+        else if (isRakeColumn) message = '✅ Рейк в буфере обмена!';
         else if (isGroupColumn) message = '✅ Лимит, Раздачи, Время в буфере обмена!';
         showNotification(message, 'success');
     });
 });
+
     }
 
     container.querySelectorAll('.day-item').forEach(function(item) {

@@ -1695,3 +1695,29 @@ body {
   line-height: 1;
   text-align: center;
 }
+
+/* 🎁 Стилизация инпута рейкбека прямо внутри шапки таблицы */
+#headerRbInput {
+  border-bottom: 1px dashed var(--color-accent) !important;
+}
+
+#headerRbInput:focus {
+  border-bottom-color: var(--text-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+.profit-text-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.profit-text-clickable:hover {
+  text-decoration: underline;
+}
+
+/* Разрешаем последней колонке шапки корректно принимать клики мыши */
+.day-list-header span:last-child {
+  text-align: right;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
