@@ -2611,8 +2611,8 @@ function renderDateFormatBlock(rawDates, recommendation) {
     if (!block || !options) return;
 
     const variants = [
-        { key: 'eu', label: 'ДД.ММ.ГГГГ (европейский)', range: recommendation.eu },
-        { key: 'us', label: 'ММ.ДД.ГГГГ (американский)', range: recommendation.us }
+        { key: 'eu', label: 'ДД.ММ.ГГГГ (Европейский)', range: recommendation.eu },
+        { key: 'us', label: 'ММ.ДД.ГГГГ (Американский)', range: recommendation.us }
     ];
 
     // Рекомендованный — первым
