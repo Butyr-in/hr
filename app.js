@@ -1576,58 +1576,65 @@ html += '</div>';
         return;
     }
 
-    const startStr = AppState.dateStart || filteredDays[0].day;
-    const endStr = AppState.dateEnd || filteredDays[filteredDays.length - 1].day;
+    // ✅ ИСПРАВЛЕНО: Сравнение по строкам, без Date-объектов
+const startStr = AppState.dateStart || filteredDays[0].day;
+const endStr = AppState.dateEnd || filteredDays[filteredDays.length - 1].day;
 
-    const startDate = new Date(startStr);
-    const endDate = new Date(endStr);
+// Создаём даты в локальном времени через компоненты
+const [startYear, startMonth, startDay] = startStr.split('-').map(Number);
+const [endYear, endMonth, endDay] = endStr.split('-').map(Number);
 
-    const daysMap = {};
-    for (const day of filteredDays) {
-        daysMap[day.day] = day;
-    }
+const startDate = new Date(startYear, startMonth - 1, startDay);
+const endDate = new Date(endYear, endMonth - 1, endDay);
 
-    const rows = [];
-    const currentDate = new Date(startDate.getTime());
+const daysMap = {};
+for (const day of filteredDays) {
+    daysMap[day.day] = day;
+}
 
-    while (currentDate <= endDate) {
-        const year = currentDate.getFullYear();
-        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-        const dayObj = String(currentDate.getDate()).padStart(2, '0');
-        const dateKey = `${year}-${month}-${dayObj}`;
+const rows = [];
+const currentDate = new Date(startDate.getTime());
 
-        const dayData = daysMap[dateKey];
+// ✅ Сравниваем по строке YYYY-MM-DD
+while (true) {
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const dayObj = String(currentDate.getDate()).padStart(2, '0');
+    const dateKey = `${year}-${month}-${dayObj}`;
 
-        if (dayData) {
-            if (isBBColumn) {
-                const dayBB = dayData.totalBBs || 0;
-                const bbFormatted = (dayBB < 0 ? '-' : '') + Math.abs(dayBB).toString().replace('.', ',');
-                rows.push([bbFormatted]);
-            } else if (isRakeColumn) {
-                // ✅ Новая логика: Сбор и форматирование рейка для Google Таблиц
-                const dayHandsArray = dayData.hands || [];
-                const dayRawRake = dayData.totalRake !== undefined ? dayData.totalRake : dayHandsArray.reduce((sum, h) => sum + (h.heroRake || 0), 0);
-                const convertedDayRake = convertCurrency(dayRawRake);
-                const rakeFormatted = convertedDayRake.toFixed(2).replace('.', ',');
-                rows.push([rakeFormatted]);
-            } else if (isGroupColumn) {
-                const avgLimit = (dayData.totalHands > 0 ? 
-                    (dayData.hands.reduce((sum, h) => sum + h.limit, 0) / dayData.totalHands) : 0
-                ).toString().replace('.', ',');
-                const timeMinutes = (dayData.totalTime / 60).toString().replace('.', ',');
-                rows.push([avgLimit, dayData.totalHands, timeMinutes]);
-            }
-        } else {
-            // Пустой день (заполняем структуру пустой строкой, чтобы не ломать даты в таблице)
-            if (isBBColumn || isRakeColumn) {
-                rows.push(['']);
-            } else if (isGroupColumn) {
-                rows.push(['', '', '']);
-            }
+    // ✅ Проверяем, не вышли ли за пределы диапазона
+    if (dateKey > endStr) break;
+
+    const dayData = daysMap[dateKey];
+
+    if (dayData) {
+        if (isBBColumn) {
+            const dayBB = dayData.totalBBs || 0;
+            const bbFormatted = (dayBB < 0 ? '-' : '') + Math.abs(dayBB).toString().replace('.', ',');
+            rows.push([bbFormatted]);
+        } else if (isRakeColumn) {
+            const dayHandsArray = dayData.hands || [];
+            const dayRawRake = dayData.totalRake !== undefined ? dayData.totalRake : dayHandsArray.reduce((sum, h) => sum + (h.heroRake || 0), 0);
+            const convertedDayRake = convertCurrency(dayRawRake);
+            const rakeFormatted = convertedDayRake.toFixed(2).replace('.', ',');
+            rows.push([rakeFormatted]);
+        } else if (isGroupColumn) {
+            const avgLimit = (dayData.totalHands > 0 ? 
+                (dayData.hands.reduce((sum, h) => sum + h.limit, 0) / dayData.totalHands) : 0
+            ).toString().replace('.', ',');
+            const timeMinutes = (dayData.totalTime / 60).toString().replace('.', ',');
+            rows.push([avgLimit, dayData.totalHands, timeMinutes]);
         }
-
-        currentDate.setDate(currentDate.getDate() + 1);
+    } else {
+        if (isBBColumn || isRakeColumn) {
+            rows.push(['']);
+        } else if (isGroupColumn) {
+            rows.push(['', '', '']);
+        }
     }
+
+    currentDate.setDate(currentDate.getDate() + 1);
+}
 
     const tsv = rows.map(row => row.join('\t')).join('\n');
 
