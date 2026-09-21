@@ -2611,8 +2611,8 @@ function renderDateFormatBlock(rawDates, recommendation) {
     if (!block || !options) return;
 
     const variants = [
-        { key: 'eu', label: 'ДД.ММ.ГГГГ (Европейский)', range: recommendation.eu },
-        { key: 'us', label: 'ММ.ДД.ГГГГ (Американский)', range: recommendation.us }
+        { key: 'eu', label: 'ДД.ММ.ГГГГ (Европейский формат)', range: recommendation.eu },
+        { key: 'us', label: 'ММ.ДД.ГГГГ (Американский формат)', range: recommendation.us }
     ];
 
     // Рекомендованный — первым
@@ -2635,9 +2635,9 @@ function renderDateFormatBlock(rawDates, recommendation) {
             && (recommendation.reason === 'certain' || recommendation.reason === 'future');
         const checked = idx === 0 ? 'checked' : '';
         const selectedClass = idx === 0 ? ' selected' : '';
-        const badge = isRecommended ? '<span class="date-option-badge">← рекомендован</span>' : '';
+        const badge = isRecommended ? '<span class="date-option-badge">Рекомендован</span>' : '';
         const statusIcon = v.range.hasFuture ? '⚠️' : '✅';
-        const statusText = v.range.hasFuture ? 'Содержит даты в будущем' : 'Диапазон выглядит корректно';
+        const statusText = v.range.hasFuture ? 'Содержит даты в будущем' : 'Выглядит корректно';
         const rangeText = fmt(v.range.min) + ' — ' + fmt(v.range.max);
 
         html += '<label class="date-option' + selectedClass + '" data-format="' + v.key + '">';
