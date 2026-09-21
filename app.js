@@ -2631,9 +2631,10 @@ function renderDateFormatBlock(rawDates, recommendation) {
 
     let html = '';
     variants.forEach((v, idx) => {
-        const isRecommended = v.key === recommendation.format;
+        const isRecommended = v.key === recommendation.format
+            && (recommendation.reason === 'certain' || recommendation.reason === 'future');
         const checked = idx === 0 ? 'checked' : '';
-        const selectedClass = idx === 0 ? ' selected' : '';   // 🆕 рамка на первом (выбранном)
+        const selectedClass = idx === 0 ? ' selected' : '';
         const badge = isRecommended ? '<span class="date-option-badge">← рекомендован</span>' : '';
         const statusIcon = v.range.hasFuture ? '⚠️' : '✅';
         const statusText = v.range.hasFuture ? 'Содержит даты в будущем' : 'Диапазон выглядит корректно';
@@ -2661,11 +2662,16 @@ function renderDateFormatBlock(rawDates, recommendation) {
         });
     });
 
-    let hintText = 'Определено автоматически по ' + rawDates.length + ' раздачам. ';
-    if (recommendation.reason === 'default') {
-        hintText = 'Недостаточно данных для однозначного определения. ';
+    let hintText;
+    if (recommendation.reason === 'certain') {
+        hintText = 'Формат определён однозначно по ' + rawDates.length + ' раздачам. ';
     } else if (recommendation.reason === 'future') {
         hintText = 'Рекомендация основана на отсутствии дат в будущем. ';
+    } else if (recommendation.reason === 'default') {
+        hintText = 'Недостаточно данных для однозначного определения. ';
+    } else {
+        // Оба варианта выглядят корректно — рекомендации нет
+        hintText = 'Оба варианта выглядят корректно. Выберите тот, что соответствует источнику раздач. ';
     }
     hintText += 'Если формат неверный — измените и нажмите «Применить».';
     hint.textContent = hintText;

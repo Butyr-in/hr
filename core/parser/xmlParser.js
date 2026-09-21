@@ -335,5 +335,10 @@ function pickRecommendedFormat(rawDates) {
     if (us.hasFuture && !eu.hasFuture) {
         return { format: 'eu', reason: 'future', eu: eu, us: us };
     }
+    // 🆕 Оба без будущего → рекомендации нет, дефолт eu
+    if (!eu.hasFuture && !us.hasFuture && eu.count > 0) {
+        return { format: 'eu', reason: 'ambiguous', eu: eu, us: us };
+    }
+    // Данных мало / вообще ничего не распарсилось
     return { format: 'eu', reason: 'default', eu: eu, us: us };
 }
