@@ -22,7 +22,8 @@ const AppState = {
     theme: 'light',
     isProcessing: false,
     chart: null,
-    dataManager: null
+    dataManager: null,
+    pendingImport: null
 };
 
 // Инициализация приложения
@@ -410,6 +411,8 @@ function setupEvents() {
         document.getElementById('importBtn').addEventListener('click', function() {
         // Принудительно прячем синюю полосу загрузки
         document.getElementById('progressContainer').classList.add('hidden');
+        document.getElementById('dateFormatBlock').style.display = 'none';
+        AppState.pendingImport = null;
         
         // Полностью обнуляем технические индикаторы процентов и файлов
         document.getElementById('progressPercentage').textContent = '0%';
@@ -573,10 +576,68 @@ if (savedOffset !== undefined) {
         }
     });
 
-    document.getElementById('closeImportBtn').addEventListener('click', function() {
+        document.getElementById('closeImportBtn').addEventListener('click', async function() {
+    const pending = AppState.pendingImport;
+    if (!pending || pending.saved) {
         closeModal('importModal');
         hideProgress();
-    });
+        document.getElementById('dateFormatBlock').style.display = 'none';
+        return;
+    }
+
+    this.disabled = true;   // ← 🆕 блокируем кнопку
+
+    const selected = document.querySelector('input[name="dateFormat"]:checked');
+    const chosenFormat = selected ? selected.value : pending.format;
+
+    // 1. Фильтруем дубликаты
+    const existingCodes = new Set(AppState.dataManager.hands.map(h => h.gamecode));
+    const newHands = pending.hands.filter(h => !existingCodes.has(h.gamecode));
+    const duplicates = pending.hands.length - newHands.length;
+
+    // 2. Пересчитываем даты
+    for (const hand of newHands) {
+        if (hand.rawStartDate) {
+            hand.startDate = parseDateTime(hand.rawStartDate, chosenFormat === 'us');
+            if (hand.durationMs) {
+                hand.endDate = new Date(hand.startDate.getTime() + hand.durationMs);
+            }
+        }
+        delete hand.rawStartDate;
+        delete hand.durationMs;
+    }
+
+    // 3. Добавляем
+    const result = await AppState.dataManager.addHands(newHands);
+
+    document.getElementById('newHandsAdded').textContent = result.added;
+    document.getElementById('duplicateHandsSkipped').textContent = result.duplicates + duplicates;
+
+    pending.saved = true;
+    AppState.pendingImport = null;
+
+    updatePlayerList();
+    updateLimitFilter();
+
+    if (result.added > 0) {
+        showNotification('✅ Добавлено ' + result.added + ' новых раздач', 'success');
+        if (AppState.dataManager.heroNick) {
+            AppState.dataManager.recalculateStats();
+            updateUI();
+            updateChart();
+        } else {
+            showNotification('👤 Выберите героя из списка', 'info');
+        }
+    } else {
+        showNotification('ℹ️ Новых раздач не найдено', 'info');
+    }
+
+    document.getElementById('dateFormatBlock').style.display = 'none';
+    closeModal('importModal');
+    hideProgress();
+
+    this.disabled = false;  // ← 🆕 разблокируем кнопку
+});
 
     // Инициализация Flatpickr для выбора диапазона дат (С отложенной загрузкой плейсхолдера)
     flatpickr("#dateRange", {
@@ -979,43 +1040,31 @@ async function handleFiles(fileList) {
         updateProgress('parsing', 'Обработка файлов...', progress, allFiles.length, processed);
     }
 
-    const result = await AppState.dataManager.addHands(allHands);
-    
-    // Скрываем синий индикатор полосы загрузки
+    // 🆕 Определяем формат дат и показываем блок выбора
+    const rawDates = allHands.map(h => h.rawStartDate).filter(Boolean);
+    const recommendation = pickRecommendedFormat(rawDates);
+    renderDateFormatBlock(rawDates, recommendation);
+
     document.getElementById('progressContainer').classList.add('hidden');
     AppState.isProcessing = false;
 
-    // Включаем отображение отчета и записываем туда свежие цифры
-    // Используем уже объявленные переменные progressStats и progressActions
     if (progressStats) {
         progressStats.style.display = 'flex';
     }
     document.getElementById('totalHandsFound').textContent = allHands.length;
-    document.getElementById('newHandsAdded').textContent = result.added;
-    document.getElementById('duplicateHandsSkipped').textContent = result.duplicates;
+    document.getElementById('newHandsAdded').textContent = '—';
+    document.getElementById('duplicateHandsSkipped').textContent = '—';
 
-    // Показываем кнопку "Готово", чтобы окно закрывалось только по клику
     if (progressActions) {
         progressActions.style.display = 'flex';
     }
 
-    // Выводим всплывающее уведомление на главном экране (под модалкой)
-    if (result.added > 0) {
-        showNotification('✅ Добавлено ' + result.added + ' новых раздач (' + result.duplicates + ' пропущено дублей)', 'success');
-        
-        updatePlayerList();
-        updateLimitFilter();
-        
-        if (AppState.dataManager.heroNick) {
-            AppState.dataManager.recalculateStats();
-            updateUI();
-            updateChart();
-        } else {
-            showNotification('👤 Выберите героя из списка', 'info');
-        }
-    } else {
-        showNotification('ℹ️ Новых раздач не найдено (' + result.duplicates + ' уже загружены)', 'info');
-    }
+    // 🆕 Запоминаем руки и формат — сохраним в БД только по клику "Применить"
+    AppState.pendingImport = {
+        hands: allHands,
+        format: recommendation.format,
+        saved: false
+    };
 }
 
 
@@ -2551,6 +2600,64 @@ function sortSessionHands(hands, column, isAsc) {
     });
 
     return sorted;
+}
+
+function renderDateFormatBlock(rawDates, recommendation) {
+    const block = document.getElementById('dateFormatBlock');
+    const options = document.getElementById('dateFormatOptions');
+    const hint = document.getElementById('dateFormatHint');
+    if (!block || !options) return;
+
+    const variants = [
+        { key: 'eu', label: 'ДД.ММ.ГГГГ (европейский)', range: recommendation.eu },
+        { key: 'us', label: 'ММ.ДД.ГГГГ (американский)', range: recommendation.us }
+    ];
+
+    // Рекомендованный — первым
+    variants.sort((a, b) => {
+        if (a.key === recommendation.format) return -1;
+        if (b.key === recommendation.format) return 1;
+        return 0;
+    });
+
+    const fmt = (d) => {
+        if (!d) return '—';
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        return dd + '.' + mm + '.' + d.getFullYear();
+    };
+
+    let html = '';
+    variants.forEach((v, idx) => {
+        const isRecommended = v.key === recommendation.format;
+        const checked = idx === 0 ? 'checked' : '';
+        const badge = isRecommended ? '<span class="date-option-badge">← рекомендован</span>' : '';
+        const statusIcon = v.range.hasFuture ? '⚠️' : '✅';
+        const statusText = v.range.hasFuture ? 'Содержит даты в будущем' : 'Диапазон выглядит корректно';
+        const rangeText = fmt(v.range.min) + ' — ' + fmt(v.range.max);
+
+        html += '<label class="date-option' + (isRecommended ? ' recommended' : '') + '">';
+        html += '<input type="radio" name="dateFormat" value="' + v.key + '" ' + checked + '>';
+        html += '<div class="date-option-body">';
+        html += '<div class="date-option-label">' + v.label + ' ' + badge + '</div>';
+        html += '<div class="date-option-range">Диапазон: ' + rangeText + '</div>';
+        html += '<div class="date-option-status">' + statusIcon + ' ' + statusText + '</div>';
+        html += '</div>';
+        html += '</label>';
+    });
+
+    options.innerHTML = html;
+
+    let hintText = 'Определено автоматически по ' + rawDates.length + ' раздачам. ';
+    if (recommendation.reason === 'default') {
+        hintText = 'Недостаточно данных для однозначного определения. ';
+    } else if (recommendation.reason === 'future') {
+        hintText = 'Рекомендация основана на отсутствии дат в будущем. ';
+    }
+    hintText += 'Если формат неверный — измените и нажмите «Применить».';
+    hint.textContent = hintText;
+
+    block.style.display = 'block';
 }
 
 // ============================================================

@@ -133,13 +133,15 @@ function parseGame(gameNode, isAmericanDateFormat = false) {
     });
 
     return {
-        gamecode: gamecode,
-        startDate: startDate,
-        endDate: endDate,
-        limit: Math.round(bigBlind * 100),
-        players: players,
-        actions: actions
-    };
+    gamecode: gamecode,
+    rawStartDate: startDateStr,
+    durationMs: durationMs,
+    startDate: startDate,
+    endDate: endDate,
+    limit: Math.round(bigBlind * 100),
+    players: players,
+    actions: actions
+};
 }
 
 
@@ -269,4 +271,69 @@ function parseDateTime(dateStr, isAmericanDateFormat = false) {
     }
     
     return new Date(year, month - 1, day, timeParts[0], timeParts[1], timeParts[2]);
+}
+
+// ===== ОПРЕДЕЛЕНИЕ ФОРМАТА ДАТ ПО СОДЕРЖИМОМУ ФАЙЛОВ =====
+
+function determineDateFormat(rawDates) {
+    let hasEuOnly = false;
+    let hasUsOnly = false;
+    let total = 0;
+
+    for (const raw of rawDates) {
+        if (!raw) continue;
+        const datePart = raw.trim().split(/\s+/)[0];
+        const nums = datePart.match(/\d+/g);
+        if (!nums || nums.length < 3) continue;
+        if (nums[2].length !== 4) continue;
+
+        const a = parseInt(nums[0]);
+        const b = parseInt(nums[1]);
+        total++;
+
+        if (a > 12 && b <= 12) hasEuOnly = true;
+        else if (b > 12 && a <= 12) hasUsOnly = true;
+    }
+
+    if (hasEuOnly && !hasUsOnly) return { format: 'eu', confidence: 'certain', total };
+    if (hasUsOnly && !hasEuOnly) return { format: 'us', confidence: 'certain', total };
+    if (hasEuOnly && hasUsOnly)  return { format: null,  confidence: 'conflict', total };
+    return { format: null, confidence: 'guess', total };
+}
+
+function computeDateRange(rawDates, format) {
+    let min = null, max = null, count = 0;
+    const tomorrow = new Date();
+    tomorrow.setHours(23, 59, 59, 999);
+    let hasFuture = false;
+
+    for (const raw of rawDates) {
+        if (!raw) continue;
+        const d = parseDateTime(raw, format === 'us');
+        if (isNaN(d.getTime())) continue;
+
+        if (min === null || d < min) min = d;
+        if (max === null || d > max) max = d;
+        if (d > tomorrow) hasFuture = true;
+        count++;
+    }
+
+    return { min, max, count, hasFuture };
+}
+
+function pickRecommendedFormat(rawDates) {
+    const eu = computeDateRange(rawDates, 'eu');
+    const us = computeDateRange(rawDates, 'us');
+    const certain = determineDateFormat(rawDates);
+
+    if (certain.confidence === 'certain') {
+        return { format: certain.format, reason: 'certain', eu: eu, us: us };
+    }
+    if (eu.hasFuture && !us.hasFuture) {
+        return { format: 'us', reason: 'future', eu: eu, us: us };
+    }
+    if (us.hasFuture && !eu.hasFuture) {
+        return { format: 'eu', reason: 'future', eu: eu, us: us };
+    }
+    return { format: 'eu', reason: 'default', eu: eu, us: us };
 }

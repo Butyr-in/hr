@@ -1696,28 +1696,89 @@ body {
   text-align: center;
 }
 
-/* 🎁 Стилизация инпута рейкбека прямо внутри шапки таблицы */
-#headerRbInput {
-  border-bottom: 1px dashed var(--color-accent) !important;
+.date-format-block {
+    margin-top: 16px;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
 }
 
-#headerRbInput:focus {
-  border-bottom-color: var(--text-primary) !important;
-  color: var(--text-primary) !important;
+.date-format-title {
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 12px;
+    color: var(--text-primary);
 }
 
-.profit-text-clickable {
-  cursor: pointer;
-  user-select: none;
+.date-format-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
-.profit-text-clickable:hover {
-  text-decoration: underline;
+.date-option {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 12px;
+    border-radius: 6px;
+    background: var(--bg-card);
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.2s, background 0.2s;
 }
 
-/* Разрешаем последней колонке шапки корректно принимать клики мыши */
-.day-list-header span:last-child {
-  text-align: right;
-  cursor: pointer !important;
-  pointer-events: auto !important;
+.date-option:hover {
+    background: var(--bg-primary);
+}
+
+.date-option.recommended {
+    border-color: var(--accent-color, #4299e1);
+}
+
+.date-option input[type="radio"] {
+    margin-top: 4px;
+    flex-shrink: 0;
+}
+
+.date-option-body {
+    flex: 1;
+}
+
+.date-option-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.date-option-badge {
+    font-size: 11px;
+    color: var(--accent-color, #4299e1);
+    font-weight: 500;
+    background: rgba(66, 153, 225, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.date-option-range {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.date-option-status {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.date-format-hint {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
 }
