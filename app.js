@@ -585,7 +585,8 @@ if (savedOffset !== undefined) {
         return;
     }
 
-    this.disabled = true;   // ← 🆕 блокируем кнопку
+    this.disabled = true;
+    this.textContent = 'Сохранение...';
 
     const selected = document.querySelector('input[name="dateFormat"]:checked');
     const chosenFormat = selected ? selected.value : pending.format;
@@ -637,6 +638,7 @@ if (savedOffset !== undefined) {
     hideProgress();
 
     this.disabled = false;  // ← 🆕 разблокируем кнопку
+    this.textContent = 'Применить';
 });
 
     // Инициализация Flatpickr для выбора диапазона дат (С отложенной загрузкой плейсхолдера)
@@ -2631,12 +2633,13 @@ function renderDateFormatBlock(rawDates, recommendation) {
     variants.forEach((v, idx) => {
         const isRecommended = v.key === recommendation.format;
         const checked = idx === 0 ? 'checked' : '';
+        const selectedClass = idx === 0 ? ' selected' : '';   // 🆕 рамка на первом (выбранном)
         const badge = isRecommended ? '<span class="date-option-badge">← рекомендован</span>' : '';
         const statusIcon = v.range.hasFuture ? '⚠️' : '✅';
         const statusText = v.range.hasFuture ? 'Содержит даты в будущем' : 'Диапазон выглядит корректно';
         const rangeText = fmt(v.range.min) + ' — ' + fmt(v.range.max);
 
-        html += '<label class="date-option' + (isRecommended ? ' recommended' : '') + '">';
+        html += '<label class="date-option' + selectedClass + '" data-format="' + v.key + '">';
         html += '<input type="radio" name="dateFormat" value="' + v.key + '" ' + checked + '>';
         html += '<div class="date-option-body">';
         html += '<div class="date-option-label">' + v.label + ' ' + badge + '</div>';
@@ -2647,6 +2650,16 @@ function renderDateFormatBlock(rawDates, recommendation) {
     });
 
     options.innerHTML = html;
+
+    // 🆕 Перемещаем рамку по клику
+    options.querySelectorAll('.date-option').forEach(function(option) {
+        option.addEventListener('click', function() {
+            options.querySelectorAll('.date-option').forEach(function(o) {
+                o.classList.remove('selected');
+            });
+            this.classList.add('selected');
+        });
+    });
 
     let hintText = 'Определено автоматически по ' + rawDates.length + ' раздачам. ';
     if (recommendation.reason === 'default') {
