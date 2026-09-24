@@ -8,6 +8,7 @@ const AppState = {
     chartType: localStorage.getItem('pokerChartType') || 'line',
     dateStart: null,
     dateEnd: null,
+    dateMode: localStorage.getItem('pokerDateMode') || 'period', // 'period' | 'today'
     expandedDay: null,
     expandedSession: null,
     // 📊 Состояние сортировки раздач внутри сессий
@@ -25,6 +26,14 @@ const AppState = {
     dataManager: null,
     pendingImport: null
 };
+
+function applyPeriodMode() {
+    AppState.dateMode = 'period';
+    localStorage.setItem('pokerDateMode', 'period');
+    updateDateModeUI();
+}
+
+
 
 // Инициализация приложения
 async function initApp() {
@@ -47,12 +56,22 @@ async function initApp() {
         
         loadSettings();
         
-        // 📥 Загружаем сохранённые даты в самом начале, до настройки UI и событий
-        const savedDateStart = localStorage.getItem('pokerDateStart');
-        const savedDateEnd = localStorage.getItem('pokerDateEnd');
-        if (savedDateStart && savedDateEnd) {
-            AppState.dateStart = savedDateStart;
-            AppState.dateEnd = savedDateEnd;
+                // 📥 Загружаем сохранённые даты в самом начале, до настройки UI и событий
+        AppState.dateMode = localStorage.getItem('pokerDateMode') || 'period';
+
+        if (AppState.dateMode === 'today') {
+            const today = getTodayWorkDay();
+            AppState.dateStart = today;
+            AppState.dateEnd   = today;
+            localStorage.setItem('pokerDateStart', today);
+            localStorage.setItem('pokerDateEnd', today);
+        } else {
+            const savedDateStart = localStorage.getItem('pokerDateStart');
+            const savedDateEnd = localStorage.getItem('pokerDateEnd');
+            if (savedDateStart && savedDateEnd) {
+                AppState.dateStart = savedDateStart;
+                AppState.dateEnd = savedDateEnd;
+            }
         }
         
         const loaded = await AppState.dataManager.loadHands();
@@ -346,6 +365,44 @@ function updateLimitFilter() {
 // ============================================================
 
 function setupEvents() {
+          document.getElementById('todayBtn').addEventListener('click', function() {
+    console.log('▶️ Обработчик Сегодня, старт');
+    console.log('   dateMode =', AppState.dateMode);
+
+    const dateInput = document.getElementById('dateRange');
+    const fp = dateInput ? dateInput._flatpickr : null;
+
+    if (AppState.dateMode === 'today') {
+        console.log('▶️ Ветка: выключаем Сегодня');
+        applyPeriodMode();
+        AppState.dateStart = null;
+        AppState.dateEnd   = null;
+        localStorage.removeItem('pokerDateStart');
+        localStorage.removeItem('pokerDateEnd');
+
+        if (fp) fp.clear();
+        if (dateInput) {
+            dateInput.value = '';
+            dateInput.placeholder = 'Выбрать период';
+        }
+        updateChart();
+        updateUI();
+    } else {
+    console.log('▶️ Ветка: включаем Сегодня');
+
+    // Сначала чистим календарь — это может триггерить onChange и обнулить AppState
+    if (fp) fp.clear();
+    if (dateInput) {
+        dateInput.value = '';
+        dateInput.placeholder = 'Выбрать период';
+    }
+
+    // Теперь выставляем сегодняшний день — и никто его не обнулит
+    applyTodayMode();
+    console.log('   Итог: dateStart =', AppState.dateStart, ', dateEnd =', AppState.dateEnd);
+}
+});
+
     document.getElementById('playerSelect').addEventListener('change', function() {
         const nick = this.value;
         AppState.dataManager.setHero(nick, AppState.dataManager.aliases);
@@ -514,13 +571,18 @@ function setupEvents() {
         });
     });
 
-    document.getElementById('dayStart').addEventListener('change', function() {
+        document.getElementById('dayStart').addEventListener('change', function() {
         const parts = this.value.split(':').map(Number);
         AppState.dataManager.updateSettings({
             dayStartHour: parts[0] + parts[1] / 60
         });
-        updateUI();
-        updateDayList(getSelectedLimits());
+
+        if (AppState.dateMode === 'today') {
+            applyTodayMode();
+        } else {
+            updateUI();
+            updateDayList(getSelectedLimits());
+        }
     });
 
     document.getElementById('sessionBreak').addEventListener('change', function() {
@@ -545,13 +607,18 @@ function setupEvents() {
     updateDayList(getSelectedLimits());
 });
 
-    document.getElementById('timezoneOffset').addEventListener('change', function() {
-    const offset = parseInt(this.value) || 0;
-    AppState.dataManager.updateSettings({ timezoneOffset: offset });
-    updateUI();
-    updateChart();
-    updateDayList(getSelectedLimits());  // ✅ Правильно!
-});
+        document.getElementById('timezoneOffset').addEventListener('change', function() {
+        const offset = parseInt(this.value) || 0;
+        AppState.dataManager.updateSettings({ timezoneOffset: offset });
+
+        if (AppState.dateMode === 'today') {
+            applyTodayMode();
+        } else {
+            updateUI();
+            updateChart();
+            updateDayList(getSelectedLimits());
+        }
+    });
 
     // Загружаем сохранённое значение
 const savedOffset = AppState.dataManager.settings.timezoneOffset;
@@ -659,7 +726,10 @@ if (savedOffset !== undefined) {
         dateFormat: "d.m.y",
         closeOnSelect: false,
         // Превращаем сохраненные ISO-строки в полноценные объекты JavaScript Date для корректного старта
-        defaultDate: (AppState.dateStart && AppState.dateEnd) ? [new Date(AppState.dateStart), new Date(AppState.dateEnd)] : null,
+        // Передаём defaultDate только если режим "период" и есть сохранённые даты
+defaultDate: (AppState.dateMode !== 'today' && AppState.dateStart && AppState.dateEnd)
+    ? [new Date(AppState.dateStart), new Date(AppState.dateEnd)]
+    : null,
         onOpen: function() {
             // 🛡️ ЗАЩИТА ОТ БАГА: Если старый оверлей ещё существует в DOM (например, от прошлого быстрого клика), мгновенно удаляем его
             const existingOverlay = document.getElementById('flatpickr-overlay');
@@ -709,98 +779,92 @@ if (savedOffset !== undefined) {
             }, 1000);
         }
     },
-        onChange: function(selectedDates, dateStr, instance) {
-            // Выполняем фильтрацию только когда пользователь выбрал обе границы диапазона
-            if (selectedDates.length === 2) {
-                // 🎯 Объявляем функцию конвертации здесь, чтобы JavaScript её видел
-                const toISODate = (date) => {
-                    if (!date) return '';
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                    const day = String(date.getDate()).padStart(2, '0');
-                    return `${year}-${month}-${day}`;
-                };
+            onChange: function(selectedDates, dateStr, instance) {
+    if (selectedDates.length === 2) {
+        const toISODate = (date) => {
+            if (!date) return '';
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
 
-                // ✅ ПРАВИЛЬНО: Передаем объекты дат в функцию и получаем чистый ISO-формат (ГГГГ-ММ-ДД)
-                AppState.dateStart = toISODate(selectedDates[0]);
-                AppState.dateEnd = toISODate(selectedDates[1] || selectedDates[0]); // Защита: если выбран один день, дублируем его
-                
-                document.getElementById('dateRange').value = dateStr;
-                
-                // Сохраняем в localStorage чистый строковый ISO-текст для стабильной загрузки
-                localStorage.setItem('pokerDateStart', AppState.dateStart);
-                localStorage.setItem('pokerDateEnd', AppState.dateEnd);
-                
-                updateChart();
-                updateUI();
-                instance.close();
-            } else if (selectedDates.length === 0) {
-                // Корректно обрабатываем полное очищение фильтра (клик по крестику)
-                AppState.dateStart = null;
-                AppState.dateEnd = null;
-                document.getElementById('dateRange').value = '';
-                
-                localStorage.removeItem('pokerDateStart');
-                localStorage.removeItem('pokerDateEnd');
-                
-                updateChart();
-                updateUI();
-            }
-        }
+        AppState.dateStart = toISODate(selectedDates[0]);
+        AppState.dateEnd   = toISODate(selectedDates[1] || selectedDates[0]);
+        AppState.dateMode  = 'period';
+
+        localStorage.setItem('pokerDateMode', 'period');
+        localStorage.setItem('pokerDateStart', AppState.dateStart);
+        localStorage.setItem('pokerDateEnd', AppState.dateEnd);
+
+        document.getElementById('dateRange').value = dateStr;
+
+        updateChart();
+        updateUI();
+        updateDateModeUI();
+        instance.close();
+    } else if (selectedDates.length === 0) {
+        AppState.dateStart = null;
+        AppState.dateEnd   = null;
+
+        document.getElementById('dateRange').value = '';
+
+        localStorage.removeItem('pokerDateStart');
+        localStorage.removeItem('pokerDateEnd');
+
+        updateChart();
+        updateUI();
+        updateDateModeUI();
+    }
+}
     });
 
-    // Если даты в памяти отсутствуют, просто показываем аккуратный плейсхолдер
-    if (!AppState.dateStart || !AppState.dateEnd) {
-        document.getElementById('dateRange').placeholder = "Выберите период";
-    }
+    // Всегда выставляем плейсхолдер — он нужен и в режиме "Сегодня", и когда период не выбран
+const dateRangeEl = document.getElementById('dateRange');
+if (dateRangeEl) {
+    dateRangeEl.placeholder = 'Выбрать период';
+}
 
     // Плавно проявляем инпут и крестик вместе, когда Flatpickr полностью готов к работе
-    setTimeout(function() {
+        setTimeout(function() {
         const dateInput = document.getElementById('dateRange');
         if (dateInput) dateInput.style.opacity = "1";
 
-        // ✅ Крестик теперь тоже проявляется плавно и одновременно с календарем
         const clearBtn = document.getElementById('clearDateFilter');
         if (clearBtn) clearBtn.style.opacity = "1";
+
+        updateDateModeUI();
     }, 50);
 
     // Обработчик клика без дубликатов
         // Найдите этот блок в setupEvents() и замените на обновленный:
-    document.getElementById('clearDateFilter').addEventListener('click', function() {
-        AppState.dateStart = null;
-        AppState.dateEnd = null;
-        AppState.expandedDay = null; // ✅ Очищаем развернутый день при сбросе
-        
-        // Восстанавливаем дефолтный режим отображения
-        const prevView = localStorage.getItem('pokerPreviousView') || 'days';
-        AppState.currentView = prevView;
-        localStorage.setItem('pokerCurrentView', prevView);
+        document.getElementById('clearDateFilter').addEventListener('click', function() {
+    AppState.dateStart = null;
+    AppState.dateEnd = null;
+    AppState.expandedDay = null;
+    AppState.dateMode = 'period';
+    localStorage.setItem('pokerDateMode', 'period');
 
-        localStorage.removeItem('pokerDateStart');
-        localStorage.removeItem('pokerDateEnd');
-        localStorage.removeItem('pokerDateStartBak');
-        localStorage.removeItem('pokerDateEndBak');
-        localStorage.removeItem('pokerPreviousView');
-        
-        const dateInput = document.getElementById('dateRange');
-        const fp = dateInput?._flatpickr;
-        if (fp) {
-            fp.clear(); 
-        }
+    const dateInput = document.getElementById('dateRange');
+    if (dateInput) {
+        dateInput.value = '';
+        dateInput.placeholder = 'Выбрать период';
+        dateInput.classList.remove('has-value');
+    }
 
-        if (dateInput) {
-            dateInput.value = ''; 
-            dateInput.placeholder = "Выберите период";
-        }
-        
-        document.querySelectorAll('.chart-btn').forEach(function(b) {
-            b.classList.remove('active');
-            if (b.dataset.mode === AppState.currentView) b.classList.add('active');
-        });
-        
-        updateChart();
-        updateUI();
-    });
+    const fpInstance = dateInput ? dateInput._flatpickr : null;
+    if (fpInstance) fpInstance.clear();
+
+    localStorage.removeItem('pokerDateStart');
+    localStorage.removeItem('pokerDateEnd');
+    localStorage.removeItem('pokerDateStartBak');
+    localStorage.removeItem('pokerDateEndBak');
+    // pokerPreviousView НЕ трогаем — пусть управляется только toggleDay
+
+    updateDateModeUI();
+    updateChart();
+    updateUI();
+});
 
 }
 
@@ -2145,7 +2209,67 @@ function toggleChartType() {
 
 
 
+// 🗓 Возвращает YYYY-MM-DD для текущего рабочего дня с учётом dayStartHour
+function getTodayWorkDay() {
+    const now = new Date();
+    const offset = AppState.dataManager.settings.timezoneOffset || 0;
+    now.setHours(now.getHours() + offset);
 
+    const dayStartHour = AppState.dataManager.settings.dayStartHour ?? 6;
+    if (now.getHours() < dayStartHour) {
+        now.setDate(now.getDate() - 1);
+    }
+
+    const year  = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day   = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function applyTodayMode() {
+    const today = getTodayWorkDay();
+    AppState.dateStart = today;
+    AppState.dateEnd   = today;
+    AppState.dateMode  = 'today';
+
+    localStorage.setItem('pokerDateMode', 'today');
+    localStorage.setItem('pokerDateStart', today);
+    localStorage.setItem('pokerDateEnd', today);
+
+    updateDateModeUI();
+    updateChart();
+    updateUI();
+}
+
+function applyPeriodMode() {
+    AppState.dateMode = 'period';
+    localStorage.setItem('pokerDateMode', 'period');
+    updateDateModeUI();
+}
+
+function updateDateModeUI() {
+    const todayBtn = document.getElementById('todayBtn');
+    const dateInput = document.getElementById('dateRange');
+    if (!todayBtn) return;
+
+    if (AppState.dateMode === 'today') {
+        todayBtn.classList.add('active');
+        if (dateInput) dateInput.classList.remove('has-value');
+        return;
+    }
+
+    todayBtn.classList.remove('active');
+
+    if (!dateInput) return;
+
+    // Проверяем РЕАЛЬНОЕ содержимое инпута, а не только состояние AppState
+    const hasText = dateInput.value && dateInput.value.trim() !== '';
+    if (hasText) {
+        dateInput.classList.add('has-value');
+    } else {
+        dateInput.classList.remove('has-value');
+    }
+}
 
 function filterHands(hands) {
     let filtered = [...hands];

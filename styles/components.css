@@ -311,9 +311,67 @@
 }
 
 .chart-period {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--bg-input);
+    padding: 4px;
+    border-radius: 8px;
+    box-sizing: border-box;
+}
+
+/* Поле ввода даты — та же высота, что у .chart-btn */
+.chart-period .flatpickr-input {
+    padding: 6px 12px !important;         /* как у .chart-btn: 6px по вертикали */
+    border: none !important;
+    border-radius: 6px !important;
+    background: transparent !important;
+    font-size: 13px !important;
+    line-height: 1.2 !important;
+    width: 145px !important;
+    box-shadow: none !important;
+    box-sizing: border-box !important;
+    transition: background var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+.chart-period .flatpickr-input:focus {
+    box-shadow: none !important;
+    border: none !important;
+}
+
+.chart-period .flatpickr-input:hover {
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+/* Активное состояние — как у активной .chart-btn */
+.chart-period .flatpickr-input.has-value {
+    background: var(--bg-card) !important;
+    box-shadow: var(--shadow-sm) !important;
+    color: var(--text-primary) !important;
+    font-weight: 600;
+}
+
+/* Кнопка ✕ — тоже без фиксированной высоты */
+#clearDateFilter {
+    padding: 6px 10px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.2;
+    box-sizing: border-box;
+    transition: background var(--transition-speed), color var(--transition-speed);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#clearDateFilter:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
 }
 
 .chart-container {
@@ -1582,27 +1640,8 @@ body {
 }
 
 .flatpickr-input::placeholder {
-    color: var(--text-muted) !important;
-}
-
-.flatpickr-input::-webkit-input-placeholder {
-    color: var(--text-muted) !important;
-    opacity: 0.7;
-}
-
-.flatpickr-input::-moz-placeholder {
-    color: var(--text-muted) !important;
-    opacity: 0.7;
-}
-
-.flatpickr-input:-ms-input-placeholder {
-    color: var(--text-muted) !important;
-    opacity: 0.7;
-}
-
-.flatpickr-input::placeholder {
-    color: var(--text-muted) !important;
-    opacity: 0.7;
+    color: var(--text-secondary) !important;
+    opacity: 1;
 }
 
 .dark-theme .flatpickr-calendar,
@@ -1799,4 +1838,27 @@ body {
     color: #ffffff !important;
     box-shadow: none !important;
     transform: none !important;
+}
+
+/* Кнопка Сегодня — точная копия .chart-btn */
+#todayBtn {
+    opacity: 1;
+    padding: 6px 14px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: opacity 0.3s ease, background var(--transition-speed), color var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+#todayBtn:hover {
+    color: var(--text-primary);
+}
+
+#todayBtn.active {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
 }
