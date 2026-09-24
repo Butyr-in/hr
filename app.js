@@ -1604,7 +1604,7 @@ html += '</div>';
             });
         });
 
-                // ============================================================
+        // ============================================================
         // ОБРАБОТЧИК КЛИКА НА ЗАГОЛОВОК (копирование в Google Таблицы)
         // ============================================================
         header.addEventListener('click', function(e) {
@@ -1627,9 +1627,20 @@ html += '</div>';
         return;
     }
 
-    // ✅ ИСПРАВЛЕНО: Сравнение по строкам, без Date-объектов
-const startStr = AppState.dateStart || filteredDays[0].day;
-const endStr = AppState.dateEnd || filteredDays[filteredDays.length - 1].day;
+// 🎯 Ограничиваем диапазон реальными днями, которые есть в таблице
+const firstDayWithData = filteredDays[0]?.day;
+const lastDayWithData  = filteredDays[filteredDays.length - 1]?.day;
+
+let startStr = firstDayWithData;
+let endStr   = lastDayWithData;
+
+// Учитываем выбор пользователя только если он сужает диапазон
+if (AppState.dateStart && AppState.dateStart > firstDayWithData) {
+    startStr = AppState.dateStart;
+}
+if (AppState.dateEnd && AppState.dateEnd < lastDayWithData) {
+    endStr = AppState.dateEnd;
+}
 
 // Создаём даты в локальном времени через компоненты
 const [startYear, startMonth, startDay] = startStr.split('-').map(Number);
