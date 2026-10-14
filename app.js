@@ -1366,12 +1366,11 @@ function updateWidgets(stats) {
 
     // ===== ВРЕМЯ =====
     if (widgets.time === 'hours') {
-    const totalSeconds = stats.totalTime || 0;
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    document.getElementById('totalTime').textContent = hours + ':' + String(minutes).padStart(2, '0');
-    document.getElementById('totalTimeMinutes').textContent = 'чч:мм';
-} else {
+        const totalSeconds = stats.totalTime || 0;
+        const hours = Math.floor(totalSeconds / 3600);
+        document.getElementById('totalTime').textContent = hours;
+        document.getElementById('totalTimeMinutes').textContent = 'часы';
+    } else {
         const minutes = Math.round((stats.totalTime || 0) / 60);
         document.getElementById('totalTime').textContent = minutes;
         document.getElementById('totalTimeMinutes').textContent = 'минуты';
