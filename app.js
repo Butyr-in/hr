@@ -482,9 +482,10 @@ function setupEvents() {
         if (progressStats) {
             progressStats.style.display = 'none';
         }
-        document.getElementById('totalHandsFound').textContent = '0';
+            document.getElementById('totalHandsFound').textContent = '0';
         document.getElementById('newHandsAdded').textContent = '0';
         document.getElementById('duplicateHandsSkipped').textContent = '0';
+        document.getElementById('tournamentsSkipped').textContent = '0';
         
         // Прячем кнопку "Готово", чтобы она не появилась раньше времени
         const progressActions = document.getElementById('progressActions');
@@ -1089,12 +1090,17 @@ async function handleFiles(fileList) {
 
     const allHands = [];
     let processed = 0;
+    let tournamentsSkipped = 0;
 
     for (const file of allFiles) {
         try {
             const content = await file.text();
             const hands = parseAllHands(content);
-            if (hands && hands.length > 0) {
+
+            if (hands === null) {
+                // Турнирный файл — не импортируем, считаем
+                tournamentsSkipped++;
+            } else if (hands.length > 0) {
                 allHands.push(...hands);
             }
         } catch (error) {
@@ -1120,6 +1126,7 @@ async function handleFiles(fileList) {
     document.getElementById('totalHandsFound').textContent = allHands.length;
     document.getElementById('newHandsAdded').textContent = '—';
     document.getElementById('duplicateHandsSkipped').textContent = '—';
+    document.getElementById('tournamentsSkipped').textContent = tournamentsSkipped;
 
     if (progressActions) {
         progressActions.style.display = 'flex';
@@ -1169,6 +1176,7 @@ function showProgress() {
     document.getElementById('totalHandsFound').textContent = '0';
     document.getElementById('newHandsAdded').textContent = '0';
     document.getElementById('duplicateHandsSkipped').textContent = '0';
+    document.getElementById('tournamentsSkipped').textContent = '0';
     // Скрываем счётчики при старте
 const progressStats = document.getElementById('progressStats');
 if (progressStats) {

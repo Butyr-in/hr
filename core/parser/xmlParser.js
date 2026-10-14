@@ -23,12 +23,9 @@ function parseAllHands(xmlString, isAmericanDateFormat = false) {
     if (!xmlString) return null;
 
     // Подготовка: если файл содержит несколько <root>, оборачиваем его в один <wrapper>
-    // и вырезаем лишние открывающие/закрывающие теги root
     let preparedXml = xmlString.trim();
     if ((preparedXml.match(/<root>/g) || []).length > 1) {
-        // Удаляем все <root> и </root>
         preparedXml = preparedXml.replace(/<root>/g, '').replace(/<\/root>/g, '');
-        // Оборачиваем в один легальный корневой тег
         preparedXml = `<root>${preparedXml}</root>`;
     }
 
@@ -41,12 +38,33 @@ function parseAllHands(xmlString, isAmericanDateFormat = false) {
         return null;
     }
 
+    // 🎯 Читаем корневой <general> — там лежит gametype с форматом кэша
+    const rootGeneral = xmlDoc.querySelector('root > general');
+    if (!rootGeneral) return null;
+
+    const gametypeNode = rootGeneral.querySelector('gametype');
+    const gametype = gametypeNode ? gametypeNode.textContent.trim() : '';
+
+    // Турниры не импортируем — у них нет "SB/BB" в gametype
+    if (!gametype || !gametype.includes('/')) {
+        console.warn('⚠️ Пропущено (турнир):', gametype || 'нет gametype');
+        return null;
+    }
+
+    // Извлекаем только BB из gametype: "Holdem NL €0.10/€0.25" → "0.25"
+    const bbMatch = gametype.match(/\/\s*[^\d]*([\d.,]+)/);
+    if (!bbMatch) return null;
+
+    const bigBlind = parseFloat(bbMatch[1].replace(',', '.'));
+    if (!bigBlind || isNaN(bigBlind)) return null;
+
+    const limit = Math.round(bigBlind * 100);
+
     const gameNodes = xmlDoc.querySelectorAll('game');
     const hands = [];
 
     for (let i = 0; i < gameNodes.length; i++) {
-        // Передаем флаг формата даты дальше в parseGame
-        const hand = parseGame(gameNodes[i], isAmericanDateFormat);
+        const hand = parseGame(gameNodes[i], limit, isAmericanDateFormat);
         if (hand) {
             hands.push(hand);
         }
@@ -57,7 +75,7 @@ function parseAllHands(xmlString, isAmericanDateFormat = false) {
 
 
 // ===== ПАРСИМ ОДНУ РАЗДАЧУ (С УЧЕТОМ ДЛИТЕЛЬНОСТИ И КАРТ) =====
-function parseGame(gameNode, isAmericanDateFormat = false) {
+function parseGame(gameNode, limit, isAmericanDateFormat = false) {
     const gamecode = gameNode.getAttribute('gamecode');
     if (!gamecode) return null;
 
@@ -84,23 +102,6 @@ function parseGame(gameNode, isAmericanDateFormat = false) {
     const startDate = parseDateTime(startDateStr, isAmericanDateFormat);
     const endDate = new Date(startDate.getTime() + durationMs);
 
-    // Находим большого блайнда
-    let bigBlind = 0;
-    const round0 = gameNode.querySelector('round[no="0"]');
-    if (round0) {
-        const actions0 = round0.querySelectorAll('action');
-        const bbType = typeof ACTION_TYPES !== 'undefined' ? ACTION_TYPES.BB : 2; 
-
-        for (let a = 0; a < actions0.length; a++) {
-            const action = actions0[a];
-            const type = parseInt(action.getAttribute('type'));
-            if (type === bbType) {
-                bigBlind = cleanSum(action.getAttribute('sum'));
-                break;
-            }
-        }
-    }
-
     // Собираем карманные карты игроков из раунда 1
     const playerCardsMap = {};
     const round1 = gameNode.querySelector('round[no="1"]');
@@ -110,7 +111,7 @@ function parseGame(gameNode, isAmericanDateFormat = false) {
             const pName = cardsNodes[c].getAttribute('player');
             const pCards = cardsNodes[c].textContent ? cardsNodes[c].textContent.trim() : '';
             if (pName && pCards && pCards !== 'X X') {
-                playerCardsMap[pName] = pCards; // Сохраняем "D8 DJ"
+                playerCardsMap[pName] = pCards;
             }
         }
     }
@@ -128,20 +129,20 @@ function parseGame(gameNode, isAmericanDateFormat = false) {
             win: win,
             bet: bet,
             rake: rake,
-            cards: playerCardsMap[name] || null // Привязываем карты к игроку
+            cards: playerCardsMap[name] || null
         };
     });
 
     return {
-    gamecode: gamecode,
-    rawStartDate: startDateStr,
-    durationMs: durationMs,
-    startDate: startDate,
-    endDate: endDate,
-    limit: Math.round(bigBlind * 100),
-    players: players,
-    actions: actions
-};
+        gamecode: gamecode,
+        rawStartDate: startDateStr,
+        durationMs: durationMs,
+        startDate: startDate,
+        endDate: endDate,
+        limit: limit,   // ← приходит снаружи, из parseAllHands
+        players: players,
+        actions: actions
+    };
 }
 
 
