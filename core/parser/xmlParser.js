@@ -38,27 +38,29 @@ function parseAllHands(xmlString, isAmericanDateFormat = false) {
         return null;
     }
 
-    // 🎯 Читаем корневой <general> — там лежит gametype с форматом кэша
-    const rootGeneral = xmlDoc.querySelector('root > general');
-    if (!rootGeneral) return null;
+// 🎯 Ищем <general>, который НЕ вложен в <game> — это шапка файла
+const rootGeneral = Array.from(xmlDoc.querySelectorAll('general'))
+    .find(el => !el.closest('game'));
 
-    const gametypeNode = rootGeneral.querySelector('gametype');
-    const gametype = gametypeNode ? gametypeNode.textContent.trim() : '';
+if (!rootGeneral) return null;
 
-    // Турниры не импортируем — у них нет "SB/BB" в gametype
-    if (!gametype || !gametype.includes('/')) {
-        console.warn('⚠️ Пропущено (турнир):', gametype || 'нет gametype');
-        return null;
-    }
+const gametypeNode = rootGeneral.querySelector('gametype');
+const gametype = gametypeNode ? gametypeNode.textContent.trim() : '';
 
-    // Извлекаем только BB из gametype: "Holdem NL €0.10/€0.25" → "0.25"
-    const bbMatch = gametype.match(/\/\s*[^\d]*([\d.,]+)/);
-    if (!bbMatch) return null;
+// Турниры не импортируем — у них нет "SB/BB" в gametype
+if (!gametype || !gametype.includes('/')) {
+    console.warn('⚠️ Пропущено (турнир):', gametype || 'нет gametype');
+    return null;
+}
 
-    const bigBlind = parseFloat(bbMatch[1].replace(',', '.'));
-    if (!bigBlind || isNaN(bigBlind)) return null;
+// Извлекаем только BB из gametype: "Holdem NL €0.10/€0.25" → "0.25"
+const bbMatch = gametype.match(/\/\s*[^\d]*([\d.,]+)/);
+if (!bbMatch) return null;
 
-    const limit = Math.round(bigBlind * 100);
+const bigBlind = parseFloat(bbMatch[1].replace(',', '.'));
+if (!bigBlind || isNaN(bigBlind)) return null;
+
+const limit = Math.round(bigBlind * 100);
 
     const gameNodes = xmlDoc.querySelectorAll('game');
     const hands = [];
